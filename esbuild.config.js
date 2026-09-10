@@ -29,7 +29,10 @@ async function build() {
   await esbuild.build({
     ...commonOptions,
     format: 'iife',
-    globalName: 'FeedbackSDK',
+    globalName: 'FeedbackSDKBundle',
+    footer: {
+      js: 'if (typeof window !== "undefined") { window.FeedbackSDK = FeedbackSDKBundle.default || FeedbackSDKBundle.FeedbackSDK || FeedbackSDKBundle; }',
+    },
     outfile: 'dist/feedback-sdk.iife.js',
   });
 
