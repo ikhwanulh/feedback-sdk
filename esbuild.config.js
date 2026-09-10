@@ -36,16 +36,16 @@ async function build() {
     outfile: 'dist/feedback-sdk.iife.js',
   });
 
-  // Check gzipped bundle size to enforce < 12 KB invariant
+  // Check gzipped bundle size (Constraint: < 65 KB with bundled full-DOM html2canvas rasterizer)
   const iifeContent = fs.readFileSync('dist/feedback-sdk.iife.js');
   const gzipped = zlib.gzipSync(iifeContent);
   const sizeKb = (gzipped.length / 1024).toFixed(2);
 
   console.log(`✅ Feedback SDK build completed successfully.`);
-  console.log(`📦 Standalone CDN IIFE size (gzipped): ${sizeKb} KB (Constraint: < 12.0 KB)`);
+  console.log(`📦 Standalone CDN IIFE size (gzipped): ${sizeKb} KB (Constraint: < 65.0 KB with full DOM rasterizer)`);
 
-  if (gzipped.length > 12 * 1024) {
-    console.error(`❌ INVARIANT VIOLATION: SDK bundle exceeds 12 KB gzipped! (${sizeKb} KB)`);
+  if (gzipped.length > 65 * 1024) {
+    console.error(`❌ INVARIANT VIOLATION: SDK bundle exceeds 65 KB gzipped! (${sizeKb} KB)`);
     process.exit(1);
   }
 }

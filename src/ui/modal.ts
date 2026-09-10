@@ -3,6 +3,8 @@
 // Renders the floating trigger button and modal without CSS conflicts
 // =============================================================================
 
+import html2canvas from 'html2canvas';
+
 export interface ModalSubmitData {
   rawUserText: string;
   type: 'feedback' | 'bug' | 'error_page' | 'other';
@@ -85,24 +87,50 @@ export class FeedbackUI {
   }
 
   private async captureScreenshot(): Promise<string | null> {
+    if (typeof window === 'undefined' || !document.body) return null;
+
+    const root = this.container;
+    if (root) root.style.display = 'none';
+
     try {
-      // Use standard HTML5 Canvas snapshot if accessible
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.min(window.innerWidth, 1280);
-      canvas.height = Math.min(window.innerHeight, 720);
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return null;
+      // Allow browser to re-paint DOM after hiding modal
+      await new Promise((r) => setTimeout(r, 120));
 
-      ctx.fillStyle = '#1e293b';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.font = '16px sans-serif';
-      ctx.fillStyle = '#f8fafc';
-      ctx.fillText(`Viewport: ${window.innerWidth}x${window.innerHeight} | Route: ${window.location.pathname}`, 20, 40);
-      ctx.fillText(`Timestamp: ${new Date().toISOString()}`, 20, 70);
+      const canvas = await html2canvas(document.body, {
+        logging: false,
+        useCORS: true,
+        allowTaint: true,
+        scrollX: window.scrollX,
+        scrollY: window.scrollY,
+        windowWidth: document.documentElement.clientWidth,
+        windowHeight: document.documentElement.clientHeight,
+        scale: Math.min(window.devicePixelRatio || 1, 1.25),
+        ignoreElements: (element) => {
+          return element.id === 'feedback-sdk-root';
+        },
+      });
 
-      return canvas.toDataURL('image/jpeg', 0.6);
-    } catch {
-      return null;
+      return canvas.toDataURL('image/jpeg', 0.75);
+    } catch (err) {
+      console.warn('[FeedbackSDK] html2canvas capture failed, attempting fallback canvas:', err);
+      try {
+        const fallbackCanvas = document.createElement('canvas');
+        fallbackCanvas.width = 1200;
+        fallbackCanvas.height = 675;
+        const ctx = fallbackCanvas.getContext('2d');
+        if (!ctx) return null;
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, fallbackCanvas.width, fallbackCanvas.height);
+        ctx.font = '20px sans-serif';
+        ctx.fillStyle = '#f8fafc';
+        ctx.fillText(`Route: ${window.location.href}`, 30, 50);
+        ctx.fillText(`Title: ${document.title}`, 30, 90);
+        return fallbackCanvas.toDataURL('image/jpeg', 0.6);
+      } catch {
+        return null;
+      }
+    } finally {
+      if (root) root.style.display = '';
     }
   }
 
@@ -347,6 +375,9 @@ export class FeedbackUI {
                   </svg>
                   <span style="font-weight: 500; font-size: 12px; color: #cbd5e1;">Click to upload, drag & drop, or paste (Ctrl+V)</span>
                   <span style="font-size: 11px; color: #64748b;">Supports PNG, JPG, WebP up to 10MB</span>
+                  <button type="button" id="fb-btn-capture-now" style="margin-top: 6px; background: #334155; color: #f8fafc; border: 1px solid #475569; border-radius: 4px; padding: 4px 10px; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;">
+                    📸 Capture Screen Now
+                  </button>
                 </div>
                 <div id="fb-preview-container" class="fb-preview-container" style="display: none;">
                   <img id="fb-img-preview" class="fb-img-preview" alt="Screenshot preview" />
@@ -398,6 +429,7 @@ export class FeedbackUI {
     const imgPreview = this.shadow.querySelector('#fb-img-preview') as HTMLImageElement;
     const removeBtn = this.shadow.querySelector('#fb-remove-img');
     const autocaptureLabel = this.shadow.querySelector('#fb-autocapture-label') as HTMLElement;
+    const captureNowBtn = this.shadow.querySelector('#fb-btn-capture-now') as HTMLButtonElement;
 
     const setAttachment = (dataUrl: string | null) => {
       this.attachedScreenshotBase64 = dataUrl;
@@ -414,6 +446,17 @@ export class FeedbackUI {
         if (autocaptureLabel) autocaptureLabel.style.opacity = '1';
       }
     };
+
+    captureNowBtn?.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const origText = captureNowBtn.textContent;
+      captureNowBtn.textContent = 'Capturing...';
+      const snap = await this.captureScreenshot();
+      if (snap) {
+        setAttachment(snap);
+      }
+      captureNowBtn.textContent = origText;
+    });
 
     uploadZone?.addEventListener('click', (e) => {
       if ((e.target as HTMLElement).closest('#fb-remove-img')) return;
