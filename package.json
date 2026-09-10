@@ -1,0 +1,31 @@
+{
+  "name": "@yourorg/feedback-sdk",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Zero-dependency, drop-in customer telemetry and issue-reporting SDK (<12KB gzipped)",
+  "main": "dist/feedback-sdk.cjs.js",
+  "module": "dist/feedback-sdk.esm.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node esbuild.config.js && tsc --emitDeclarationOnly",
+    "test": "tsx --test src/**/*.test.ts"
+  },
+  "keywords": [
+    "feedback",
+    "telemetry",
+    "bug-report",
+    "error-tracking",
+    "b2b"
+  ],
+  "author": "Antigravity Engineering",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.13.8",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3"
+  }
+}
