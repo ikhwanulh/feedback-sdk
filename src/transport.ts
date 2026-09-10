@@ -41,24 +41,11 @@ export class Transport {
     const url = `${this.endpoint}/v1/ingest`;
     const jsonString = JSON.stringify(payload);
 
-    let body: BodyInit = jsonString;
+    const body = jsonString;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-API-Key': this.apiKey,
     };
-
-    // Compress payload using native browser CompressionStream if available
-    if (typeof CompressionStream !== 'undefined') {
-      try {
-        const stream = new Blob([jsonString])
-          .stream()
-          .pipeThrough(new CompressionStream('gzip'));
-        body = await new Response(stream).blob();
-        headers['Content-Encoding'] = 'gzip';
-      } catch {
-        // Fallback to uncompressed JSON
-      }
-    }
 
     const res = await fetch(url, {
       method: 'POST',
