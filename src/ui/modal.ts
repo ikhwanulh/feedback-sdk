@@ -15,6 +15,7 @@ export class FeedbackUI {
   private shadow: ShadowRoot | null = null;
   private isOpen = false;
   private isHidden = false;
+  private attachedScreenshotBase64: string | null = null;
   private onSubmitCallback: (data: ModalSubmitData) => Promise<boolean>;
 
   constructor(onSubmit: (data: ModalSubmitData) => Promise<boolean>) {
@@ -202,12 +203,65 @@ export class FeedbackUI {
           border-color: #3b82f6;
           box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
-        .fb-textarea { resize: vertical; min-height: 90px; }
+        .fb-textarea { resize: vertical; min-height: 80px; }
+        .fb-upload-zone {
+          border: 1px dashed #475569;
+          border-radius: 8px;
+          background: #1e293b;
+          padding: 12px;
+          text-align: center;
+          cursor: pointer;
+          transition: border-color 0.2s, background 0.2s;
+          position: relative;
+        }
+        .fb-upload-zone:hover, .fb-upload-zone.dragover {
+          border-color: #3b82f6;
+          background: rgba(59, 130, 246, 0.08);
+        }
+        .fb-upload-placeholder {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 4px;
+        }
+        .fb-upload-placeholder svg { width: 22px; height: 22px; color: #60a5fa; margin-bottom: 2px; }
+        .fb-preview-container {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .fb-img-preview {
+          max-height: 110px;
+          max-width: 100%;
+          border-radius: 6px;
+          object-fit: contain;
+          border: 1px solid #334155;
+        }
+        .fb-remove-img {
+          position: absolute;
+          top: -8px;
+          right: -8px;
+          background: #ef4444;
+          color: white;
+          border: none;
+          border-radius: 50%;
+          width: 22px;
+          height: 22px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: bold;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+        }
+        .fb-remove-img:hover { background: #dc2626; }
         .fb-checkbox-label {
           display: flex;
           align-items: center;
           gap: 8px;
-          font-size: 13px;
+          font-size: 12px;
           color: #cbd5e1;
           cursor: pointer;
         }
@@ -215,7 +269,7 @@ export class FeedbackUI {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          margin-top: 20px;
+          margin-top: 16px;
         }
         .fb-hide-link {
           background: none;
@@ -282,10 +336,29 @@ export class FeedbackUI {
             </div>
 
             <div class="fb-form-group">
-              <label class="fb-checkbox-label">
-                <input type="checkbox" id="fb-screenshot-chk" checked />
-                <span>Attach screenshot snapshot</span>
-              </label>
+              <label class="fb-label">Screenshot / Attachment (Optional)</label>
+              <div class="fb-upload-zone" id="fb-upload-zone" title="Click or drag image here, or paste from clipboard">
+                <input type="file" id="fb-file-input" accept="image/*" style="display: none;" />
+                <div id="fb-upload-placeholder" class="fb-upload-placeholder">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect width="18" height="18" x="3" y="3" rx="2" ry="2"/>
+                    <circle cx="9" cy="9" r="2"/>
+                    <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+                  </svg>
+                  <span style="font-weight: 500; font-size: 12px; color: #cbd5e1;">Click to upload, drag & drop, or paste (Ctrl+V)</span>
+                  <span style="font-size: 11px; color: #64748b;">Supports PNG, JPG, WebP up to 10MB</span>
+                </div>
+                <div id="fb-preview-container" class="fb-preview-container" style="display: none;">
+                  <img id="fb-img-preview" class="fb-img-preview" alt="Screenshot preview" />
+                  <button type="button" id="fb-remove-img" class="fb-remove-img" title="Remove screenshot">&times;</button>
+                </div>
+              </div>
+              <div style="margin-top: 8px;">
+                <label class="fb-checkbox-label" id="fb-autocapture-label">
+                  <input type="checkbox" id="fb-screenshot-chk" checked />
+                  <span>Auto-capture screen snapshot if no file uploaded</span>
+                </label>
+              </div>
             </div>
 
             <div class="fb-footer">
@@ -317,6 +390,88 @@ export class FeedbackUI {
       this.updateCriticalityVisibility(typeSelect.value);
     });
 
+    // Upload & Screenshot Attachment Logic
+    const uploadZone = this.shadow.querySelector('#fb-upload-zone') as HTMLElement;
+    const fileInput = this.shadow.querySelector('#fb-file-input') as HTMLInputElement;
+    const placeholder = this.shadow.querySelector('#fb-upload-placeholder') as HTMLElement;
+    const previewContainer = this.shadow.querySelector('#fb-preview-container') as HTMLElement;
+    const imgPreview = this.shadow.querySelector('#fb-img-preview') as HTMLImageElement;
+    const removeBtn = this.shadow.querySelector('#fb-remove-img');
+    const autocaptureLabel = this.shadow.querySelector('#fb-autocapture-label') as HTMLElement;
+
+    const setAttachment = (dataUrl: string | null) => {
+      this.attachedScreenshotBase64 = dataUrl;
+      if (dataUrl) {
+        imgPreview.src = dataUrl;
+        placeholder.style.display = 'none';
+        previewContainer.style.display = 'flex';
+        if (autocaptureLabel) autocaptureLabel.style.opacity = '0.5';
+      } else {
+        imgPreview.src = '';
+        placeholder.style.display = 'flex';
+        previewContainer.style.display = 'none';
+        if (fileInput) fileInput.value = '';
+        if (autocaptureLabel) autocaptureLabel.style.opacity = '1';
+      }
+    };
+
+    uploadZone?.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('#fb-remove-img')) return;
+      fileInput.click();
+    });
+
+    fileInput?.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = () => setAttachment(reader.result as string);
+        reader.readAsDataURL(file);
+      }
+    });
+
+    removeBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setAttachment(null);
+    });
+
+    uploadZone?.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uploadZone.classList.add('dragover');
+    });
+
+    uploadZone?.addEventListener('dragleave', () => {
+      uploadZone.classList.remove('dragover');
+    });
+
+    uploadZone?.addEventListener('drop', (e) => {
+      e.preventDefault();
+      uploadZone.classList.remove('dragover');
+      const file = e.dataTransfer?.files?.[0];
+      if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => setAttachment(reader.result as string);
+        reader.readAsDataURL(file);
+      }
+    });
+
+    // Clipboard paste support (Ctrl+V / Cmd+V)
+    window.addEventListener('paste', (e: ClipboardEvent) => {
+      if (!this.isOpen) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.startsWith('image/')) {
+          const file = items[i].getAsFile();
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = () => setAttachment(reader.result as string);
+            reader.readAsDataURL(file);
+            break;
+          }
+        }
+      }
+    });
+
     const form = this.shadow.querySelector('#fb-form') as HTMLFormElement;
     form?.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -330,8 +485,8 @@ export class FeedbackUI {
       submitBtn.disabled = true;
       submitBtn.textContent = 'Submitting...';
 
-      let screenshotBase64: string | null = null;
-      if (screenshotChk.checked) {
+      let screenshotBase64: string | null = this.attachedScreenshotBase64;
+      if (!screenshotBase64 && screenshotChk.checked) {
         screenshotBase64 = await this.captureScreenshot();
       }
 
@@ -345,6 +500,7 @@ export class FeedbackUI {
       try {
         await this.onSubmitCallback(data);
         form.reset();
+        setAttachment(null);
         this.close();
       } catch (err) {
         alert('Failed to submit report. Please try again.');
