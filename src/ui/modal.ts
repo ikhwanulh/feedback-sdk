@@ -22,21 +22,31 @@ export class FeedbackUI {
   }
 
   install(position: 'bottom-left' | 'bottom-right' = 'bottom-left'): void {
-    if (typeof window === 'undefined' || this.container) return;
+    if (typeof window === 'undefined') return;
 
-    // Check session storage to honor "Hide feedback icon" until reload
-    if (sessionStorage.getItem('__fb_hide_icon') === 'true') {
-      this.isHidden = true;
+    const mount = () => {
+      if (!document.body || this.container) return;
+
+      // Check session storage to honor "Hide feedback icon" until reload
+      if (sessionStorage.getItem('__fb_hide_icon') === 'true') {
+        this.isHidden = true;
+      }
+
+      const host = document.createElement('div');
+      host.id = 'feedback-sdk-root';
+      document.body.appendChild(host);
+
+      this.shadow = host.attachShadow({ mode: 'open' });
+      this.container = host;
+
+      this.render(position);
+    };
+
+    if (document.body) {
+      mount();
+    } else {
+      window.addEventListener('DOMContentLoaded', mount);
     }
-
-    const host = document.createElement('div');
-    host.id = 'feedback-sdk-root';
-    document.body.appendChild(host);
-
-    this.shadow = host.attachShadow({ mode: 'open' });
-    this.container = host;
-
-    this.render(position);
   }
 
   open(initialType: 'feedback' | 'bug' | 'error_page' | 'other' = 'feedback'): void {
